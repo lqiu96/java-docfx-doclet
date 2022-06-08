@@ -18,10 +18,14 @@ public class TocItem {
     }
 
     public TocItem(String uid, String name, String status) {
+        this(uid, name, status, new ArrayList<>());
+    }
+
+    public TocItem(String uid, String name, String status, List<TocItem> list) {
         this.uid = uid;
         this.name = name;
         this.status = status;
-        this.items = Collections.synchronizedList(new ArrayList<>());
+        this.items = list;
     }
 
     public TocItem(String heading) {

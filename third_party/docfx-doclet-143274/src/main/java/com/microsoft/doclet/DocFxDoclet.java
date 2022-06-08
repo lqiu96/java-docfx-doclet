@@ -28,7 +28,7 @@ public class DocFxDoclet implements Doclet {
         reporter.print(Kind.NOTE, "Project name: " + projectName);
         reporter.print(Kind.NOTE, "Disable changelog: " + disableChangelog);
 
-        return (new YmlFilesBuilder(environment, outputPath, excludePackages, excludeClasses, projectName, disableChangelog, reporter)).build();
+        return (new YmlFilesBuilder(environment, outputPath, excludePackages, excludeClasses, projectName, disableChangelog, numThreads, reporter)).build();
     }
 
     @Override
@@ -41,6 +41,7 @@ public class DocFxDoclet implements Doclet {
     private String[] excludeClasses = {};
     private String projectName;
     private boolean disableChangelog;
+    private int numThreads = 1;
 
     @Override
     public Set<? extends Option> getSupportedOptions() {
@@ -86,6 +87,13 @@ public class DocFxDoclet implements Doclet {
                         } else {
                             disableChangelog = true;
                         }
+                        return true;
+                    }
+                },
+                new CustomOption("Num Cores", Arrays.asList("-numthreads", "--num-threads", "-nt"), "threads") {
+                    @Override
+                    public boolean process(String option, List<String> arguments) {
+                        numThreads = Integer.parseInt(arguments.get(0));
                         return true;
                     }
                 },

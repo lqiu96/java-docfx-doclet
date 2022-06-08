@@ -61,6 +61,27 @@ class ClassBuilder {
     void buildFilesForInnerClasses(Element element, TocTypeMap tocTypeMap, List<MetadataFile> container) {
         List<TypeElement> typeElementsList = elementUtil.extractSortedElements(element);
         for (TypeElement classElement : typeElementsList) {
+            String uid = classLookup.extractUid(classElement);
+            String name = classLookup.extractTocName(classElement);
+            String status = classLookup.extractStatus(classElement);
+
+            if (tocTypeMap.get(classElement.getKind().name()) != null) {
+                if (classElement.getKind().name().equals(ElementKind.CLASS.name()) && name.contains("Exception")) {
+                    tocTypeMap.get("EXCEPTION").add(new TocItem(uid, name, status));
+                } else {
+                    tocTypeMap.get(classElement.getKind().name()).add(new TocItem(uid, name, status));
+                }
+            } else {
+                tocTypeMap.get(ElementKind.CLASS.name()).add(new TocItem(uid, name, status));
+            }
+
+            container.add(buildClassYmlFile(classElement));
+        }
+    }
+
+    void buildFilesForInnerClassesConcurrent(Element element, TocTypeMap tocTypeMap, List<MetadataFile> container) {
+        List<TypeElement> typeElementsList = elementUtil.extractSortedElements(element);
+        for (TypeElement classElement : typeElementsList) {
             executorService.submit(() -> {
                 String uid = classLookup.extractUid(classElement);
                 String name = classLookup.extractTocName(classElement);
