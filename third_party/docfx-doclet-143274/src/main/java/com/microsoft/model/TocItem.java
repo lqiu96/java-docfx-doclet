@@ -1,6 +1,7 @@
 package com.microsoft.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class TocItem {
@@ -9,18 +10,18 @@ public class TocItem {
     private String name;
     private String status;
     private String heading;
-    private List<TocItem> items = new ArrayList<>();
+    private List<TocItem> items;
 
 
     public TocItem(String uid, String name) {
-        this.uid = uid;
-        this.name = name;
+        this(uid, name, null);
     }
 
     public TocItem(String uid, String name, String status) {
         this.uid = uid;
         this.name = name;
         this.status = status;
+        this.items = Collections.synchronizedList(new ArrayList<>());
     }
 
     public TocItem(String heading) {

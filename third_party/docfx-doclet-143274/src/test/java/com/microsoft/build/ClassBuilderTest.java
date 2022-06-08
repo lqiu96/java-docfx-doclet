@@ -22,6 +22,7 @@ import com.microsoft.model.MetadataFile;
 import com.microsoft.model.MetadataFileItem;
 import com.microsoft.util.ElementUtil;
 import com.sun.source.util.DocTrees;
+import java.util.concurrent.Executors;
 import jdk.javadoc.doclet.DocletEnvironment;
 import org.junit.Before;
 import org.junit.Rule;
@@ -56,7 +57,8 @@ public class ClassBuilderTest {
                 classLookup,
                 new ClassItemsLookup(environment),
                 "./target",
-                new ReferenceBuilder(environment, classLookup, elementUtil));
+                new ReferenceBuilder(environment, classLookup, elementUtil),
+            Executors.newFixedThreadPool(10));
     }
     @Test
     public void addConstructorsInfoWhenOnlyDefaultConstructor() {

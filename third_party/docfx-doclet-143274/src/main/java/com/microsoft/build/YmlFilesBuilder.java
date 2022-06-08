@@ -10,12 +10,18 @@ import com.microsoft.model.TocItem;
 import com.microsoft.model.TocTypeMap;
 import com.microsoft.util.ElementUtil;
 import com.microsoft.util.FileUtil;
+import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import javax.tools.Diagnostic.Kind;
 import jdk.javadoc.doclet.DocletEnvironment;
 
 import javax.lang.model.element.PackageElement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import jdk.javadoc.doclet.Reporter;
 
 import static com.microsoft.build.BuilderUtil.populateUidValues;
 
@@ -30,9 +36,13 @@ public class YmlFilesBuilder {
     private PackageBuilder packageBuilder;
     private ClassBuilder classBuilder;
     private ReferenceBuilder referenceBuilder;
+    private Reporter reporter;
+    private ExecutorService executorService;
 
     public YmlFilesBuilder(DocletEnvironment environment, String outputPath,
-                           String[] excludePackages, String[] excludeClasses, String projectName, boolean disableChangelog) {
+                           String[] excludePackages, String[] excludeClasses, String projectName, boolean disableChangelog, Reporter reporter) {
+        this.executorService = Executors.newFixedThreadPool(10);
+
         this.environment = environment;
         this.outputPath = outputPath;
         this.elementUtil = new ElementUtil(excludePackages, excludeClasses);
@@ -43,7 +53,8 @@ public class YmlFilesBuilder {
         ClassLookup classLookup = new ClassLookup(environment);
         this.referenceBuilder = new ReferenceBuilder(environment, classLookup, elementUtil);
         this.packageBuilder = new PackageBuilder(packageLookup, outputPath, referenceBuilder);
-        this.classBuilder = new ClassBuilder(elementUtil, classLookup, new ClassItemsLookup(environment), outputPath, referenceBuilder);
+        this.reporter = reporter;
+        this.classBuilder = new ClassBuilder(elementUtil, classLookup, new ClassItemsLookup(environment), outputPath, referenceBuilder, executorService);
     }
 
     public boolean build() {
@@ -52,14 +63,15 @@ public class YmlFilesBuilder {
         //  overview page
         MetadataFile projectMetadataFile = new MetadataFile(outputPath, "overview.yml");
         //  package summary pages
-        List<MetadataFile> packageMetadataFiles = new ArrayList<>();
+        List<MetadataFile> packageMetadataFiles = Collections.synchronizedList(new ArrayList<>());
         //  packages
-        List<MetadataFileItem> packageItems = new ArrayList<>();
+        List<MetadataFileItem> packageItems = Collections.synchronizedList(new ArrayList<>());
         //  class/enum/interface/etc. pages
-        List<MetadataFile> classMetadataFiles = new ArrayList<>();
+        List<MetadataFile> classMetadataFiles = Collections.synchronizedList(new ArrayList<>());
+        // List<MetadataFile> classMetadataFiles = new ArrayList<>();
 
-        for (PackageElement packageElement :
-                elementUtil.extractPackageElements(environment.getIncludedElements())) {
+        List<PackageElement> packageElementList = elementUtil.extractPackageElements(environment.getIncludedElements());
+        for (PackageElement packageElement : packageElementList) {
             String packageUid = packageLookup.extractUid(packageElement);
             String packageStatus = packageLookup.extractStatus(packageElement);
             TocItem packageTocItem = new TocItem(packageUid, packageUid, packageStatus);
@@ -73,6 +85,13 @@ public class YmlFilesBuilder {
             TocTypeMap typeMap = new TocTypeMap();
             classBuilder.buildFilesForInnerClasses(packageElement, typeMap, classMetadataFiles);
             packageTocItem.getItems().addAll(joinTocTypeItems(typeMap));
+        }
+
+        executorService.shutdown();
+        try {
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            reporter.print(Kind.ERROR, e.getMessage());
         }
 
         for (MetadataFile packageFile : packageMetadataFiles) {

@@ -25,6 +25,7 @@ import com.microsoft.model.TocTypeMap;
 import com.microsoft.util.ElementUtil;
 import com.microsoft.util.Utils;
 
+import java.util.concurrent.ExecutorService;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -33,6 +34,8 @@ import javax.lang.model.util.ElementFilter;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.tools.Diagnostic.Kind;
+import jdk.javadoc.doclet.Reporter;
 
 import static com.microsoft.build.BuilderUtil.LANGS;
 import static com.microsoft.build.BuilderUtil.populateItemFields;
@@ -44,32 +47,38 @@ class ClassBuilder {
     private String outputPath;
     private ReferenceBuilder referenceBuilder;
 
-    ClassBuilder(ElementUtil elementUtil, ClassLookup classLookup, ClassItemsLookup classItemsLookup, String outputPath, ReferenceBuilder referenceBuilder) {
+    private ExecutorService executorService;
+
+    ClassBuilder(ElementUtil elementUtil, ClassLookup classLookup, ClassItemsLookup classItemsLookup, String outputPath, ReferenceBuilder referenceBuilder, ExecutorService executorService) {
         this.elementUtil = elementUtil;
         this.classLookup = classLookup;
         this.classItemsLookup = classItemsLookup;
         this.outputPath = outputPath;
         this.referenceBuilder = referenceBuilder;
+        this.executorService = executorService;
     }
 
     void buildFilesForInnerClasses(Element element, TocTypeMap tocTypeMap, List<MetadataFile> container) {
-        for (TypeElement classElement : elementUtil.extractSortedElements(element)) {
-            String uid = classLookup.extractUid(classElement);
-            String name = classLookup.extractTocName(classElement);
-            String status = classLookup.extractStatus(classElement);
+        List<TypeElement> typeElementsList = elementUtil.extractSortedElements(element);
+        for (TypeElement classElement : typeElementsList) {
+            executorService.submit(() -> {
+                String uid = classLookup.extractUid(classElement);
+                String name = classLookup.extractTocName(classElement);
+                String status = classLookup.extractStatus(classElement);
 
-            if (tocTypeMap.get(classElement.getKind().name()) != null) {
-                if (classElement.getKind().name().equals(ElementKind.CLASS.name()) && name.contains("Exception")) {
-                    tocTypeMap.get("EXCEPTION").add(new TocItem(uid, name, status));
+                if (tocTypeMap.get(classElement.getKind().name()) != null) {
+                    if (classElement.getKind().name().equals(ElementKind.CLASS.name()) && name.contains("Exception")) {
+                        tocTypeMap.get("EXCEPTION").add(new TocItem(uid, name, status));
+                    } else {
+                        tocTypeMap.get(classElement.getKind().name()).add(new TocItem(uid, name, status));
+                    }
                 } else {
-                    tocTypeMap.get(classElement.getKind().name()).add(new TocItem(uid, name, status));
+                    tocTypeMap.get(ElementKind.CLASS.name()).add(new TocItem(uid, name, status));
                 }
-            } else {
-                tocTypeMap.get(ElementKind.CLASS.name()).add(new TocItem(uid, name, status));
-            }
 
-            container.add(buildClassYmlFile(classElement));
-            buildFilesForInnerClasses(classElement, tocTypeMap, container);
+                container.add(buildClassYmlFile(classElement));
+                buildFilesForInnerClasses(classElement, tocTypeMap, container);
+            });
         }
     }
 
